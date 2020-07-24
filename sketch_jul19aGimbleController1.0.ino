@@ -13,10 +13,10 @@
 #define BIN2 7
 
 // pins for the encoder inputs
-#define A_ENCODER_A 3 
-#define A_ENCODER_B A1
+#define A_ENCODER_A 0 
+#define A_ENCODER_B 1 
 #define B_ENCODER_A 2
-#define B_ENCODER_B A2
+#define B_ENCODER_B 3
 
 #define MotEnable 6 //Motor Enamble pin Runs on PWM signal
 #define MotFwd  4  // Motor Forward pin
@@ -31,8 +31,8 @@ const int offsetB = 1;
 // motors as you have memory for.  If you are using functions like forward
 // that take 2 motors as arguements you can either write new functions or
 // call the function more than once.
-Motor motor1 = Motor(AIN1, AIN2, PWMA, offsetA, STBY);
-Motor motor2 = Motor(BIN1, BIN2, PWMB, offsetB, STBY);
+//Motor motor1 = Motor(AIN1, AIN2, PWMA, offsetA, STBY);
+//Motor motor2 = Motor(BIN1, BIN2, PWMB, offsetB, STBY);
 
 
 String readString; //This while store the user input data
@@ -61,16 +61,23 @@ PID myPID_top(&input_top, &output_top, &setpoint_top, kp, ki, kd, DIRECT);
 
 void setup() { 
   Serial.begin(9600); //initialize serial comunication
-  pinMode(B_ENCODER_A, INPUT);
-  pinMode(B_ENCODER_B, INPUT);
-  pinMode(A_ENCODER_A, INPUT);
-  pinMode(A_ENCODER_B, INPUT);
+  pinMode(B_ENCODER_A, INPUT_PULLUP);
+  pinMode(B_ENCODER_B, INPUT_PULLUP);
+  pinMode(A_ENCODER_A, INPUT_PULLUP);
+  pinMode(A_ENCODER_B, INPUT_PULLUP);
+  digitalWrite(B_ENCODER_A, HIGH); //turn pullup resistor on
+  digitalWrite(B_ENCODER_B, HIGH); //
+  digitalWrite(A_ENCODER_A, HIGH); //turn pullup resistor on
+  digitalWrite(A_ENCODER_B, HIGH); //
+
+   
   //call updateEncoder() when any high/low changed seen
   //on interrupt 0 (pin 2), or interrupt 1 (pin 3) 
-  attachInterrupt(0, _topEncoderEvent, RISING); 
-  attachInterrupt(1, _btmEncoderEvent, RISING);
+  attachInterrupt(0, updateEncoder, CHANGE); 
+  attachInterrupt(1, updateEncoder, CHANGE);
     
 //  TCCR1B = TCCR1B & 0b11111000 | 1;  // set 31KHz PWM to prevent motor noise
+
   myPID_btm.SetMode(AUTOMATIC);   //set PID in Auto mode
   myPID_btm.SetSampleTime(1);  // refresh rate of PID controller
   myPID_btm.SetOutputLimits(-75, 75); // this is the MAX PWM value to move motor, here change in value reflect change in speed of motor.
@@ -122,7 +129,7 @@ Serial.print(output_top);
 Serial.println("");
 //write out to the motor
 //motor1.drive(output_btm); //TODO
-motor1.drive(output_top);
+//motor1.drive(output_top);
 //Serial.print("_btm motor out - ");
 //Serial.print(output_btm);
 //Serial.print("  _top motor out - ");
@@ -155,15 +162,15 @@ String getValue(String data, char separator, int index)
 //  }
 // readString=""; // Cleaning User input, ready for new Input
 //}
-//void updateEncoder(){
-//  int MSB = digitalRead(encoderPin1); //MSB = most significant bit
-//  int LSB = digitalRead(encoderPin2); //LSB = least significant bit
-//  int encoded = (MSB << 1) |LSB; //converting the 2 pin value to single number
-//  int sum  = (lastEncoded << 2) | encoded; //adding it to the previous encoded value
-//  if(sum == 0b1101 || sum == 0b0100 || sum == 0b0010 || sum == 0b1011) encoderValue ++;
-//  if(sum == 0b1110 || sum == 0b0111 || sum == 0b0001 || sum == 0b1000) encoderValue --;
-//  lastEncoded = encoded; //store this value for next time
-//}
+void updateEncoder(){
+  int MSB = bitRead(PIND, 2); //MSB = most significant bit
+  int LSB = bitRead(PIND, 3); //LSB = least significant bit
+  int encoded = (MSB << 1) |LSB; //converting the 2 pin value to single number
+  int sum  = (lastEncoded << 2) | encoded; //adding it to the previous encoded value
+  if(sum == 0b1101 || sum == 0b0100 || sum == 0b0010 || sum == 0b1011) encoderValue ++;
+  if(sum == 0b1110 || sum == 0b0111 || sum == 0b0001 || sum == 0b1000) encoderValue --;
+  lastEncoded = encoded; //store this value for next time
+}
 
 // encoder event for the interrupt call
 void _topEncoderEvent() {
