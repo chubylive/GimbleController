@@ -7,19 +7,39 @@
 #define PWMA 10  // Motor A
 #define AIN1 14 //A0
 #define AIN2 4  //
-#define STBY 12   // Standby pin of TB6612. Shared by both channels
+#define STBY 15   // Standby pin of TB6612. Shared by both channels
 #define PWMB 5   // Motor B
 #define BIN1 6
 #define BIN2 7
 
 // pins for the encoder inputs
-#define A_ENCODER_A 0 
-#define A_ENCODER_B 1 
-#define B_ENCODER_A 2
-#define B_ENCODER_B 3
+#define BTM_A_ENCODER_A 0 
+//use pin 7 
+#define BTM_A_ENCODER_B 1 
+#define BTM_A_ENCODER_A_PN 2 
+#define BTM_A_ENCODER_B_PN 3 
+#define BTM_A_ENCODER_A_INT 2 
+#define BTM_A_ENCODER_B_INT 3 
+#define BTM_AIN1 20
+#define BTM_AIN2 21
+#define BTM_APWM 10
+
+
+
+#define TOP_B_ENCODER_A 2
+#define TOP_B_ENCODER_B 3
+#define TOP_B_ENCODER_A_PN 1
+#define TOP_B_ENCODER_B_PN 0
+#define TOP_B_ENCODER_A_INT 1
+#define TOP_B_ENCODER_B_INT 0
+#define TOP_BIN1 18
+#define TOP_BIN2 19
+#define TOP_BPWM 9
+
+#define STBY 15
 
 #define MotEnable 6 //Motor Enamble pin Runs on PWM signal
-#define MotFwd  4  // Motor Forward pin
+#define MotFwd  4  // Motorrr Forward pin
 #define MotRev  7 // Motor Reverse pin
 
 // these constants are used to allow you to make your motor configuration 
@@ -31,52 +51,55 @@ const int offsetB = 1;
 // motors as you have memory for.  If you are using functions like forward
 // that take 2 motors as arguements you can either write new functions or
 // call the function more than once.
-//Motor motor1 = Motor(AIN1, AIN2, PWMA, offsetA, STBY);
-//Motor motor2 = Motor(BIN1, BIN2, PWMB, offsetB, STBY);
 
+Motor motor1 = Motor(TOP_BIN2, TOP_BIN1, TOP_BPWM, offsetB, STBY);
+Motor motor2 = Motor(BTM_AIN1, BTM_AIN2, BTM_APWM, offsetA, STBY);
 
 String readString; //This while store the user input data
 int User_Input_btm = 0; // This while convert input string into integer
 int User_Input_top = 0; // This while convert input string into integer
 int encoderPin1 = 2; //Encoder Output 'A' must connected with intreput pin of arduino.
 int encoderPin2 = 3; //Encoder Otput 'B' must connected with intreput pin of arduino.
-volatile int lastEncoded = 0; // Here updated value of encoder store.
+volatile int lastTopEncoded = 0; // Here updated value of encoder store.
+volatile int lastBtmEncoded = 0; // Here updated value of encoder store.
 volatile long encoderValue = 0; // Raw encoder value
-volatile long _btmEncoderCount;
-volatile long _topEncoderCount;
+volatile int _btmEncoderCount;
+volatile int _topEncoderCount;
 
-const int _btmMtrPPR = 4040;  // _btm motor Encoder Pulse per revolution. TODO: update with not book numbers
-const int _topMtrPPR = 2272;  // _btm motor Encoder Pulse per revolution.
+const int _btmMtrPPR = 6330;  // _btm motor Encoder Pulse per revolution. TODO: update with not book numbers
+const int _topMtrPPR = 4540;  // _btm motor Encoder Pulse per revolution.
 int angle = 360; // Maximum degree of motion.
 int REV_btm = 0;          // Set point REQUIRED ENCODER VALUE
 int REV_top = 0;          // Set point REQUIRED ENCODER VALUE
 int lastMSB = 0;
 int lastLSB = 0;
-double kp = 1.51, ki = 0.0009 , kd = 0.05;             // modify for optimal performance
+//double kp = 1.51, ki = 0.0009 , kd = 0.05;             // modify for optimal performance
+double kp_btm =  8, ki_btm = 0.01 , kd_btm = 0.01;             // modify for optimal performance
+double kp_top =  11.5, ki_top = 0.0125 , kd_top = 0.05;             // modify for optimal performance
+
 double input_btm = 0, output_btm = 0, setpoint_btm = 0;
 double input_top = 0, output_top = 0, setpoint_top = 0;
 
-PID myPID_btm(&input_btm, &output_btm, &setpoint_btm, kp, ki, kd, DIRECT);  
-PID myPID_top(&input_top, &output_top, &setpoint_top, kp, ki, kd, DIRECT);  
+PID myPID_btm(&input_btm, &output_btm, &setpoint_btm, kp_btm, ki_btm, kd_btm, DIRECT);  
+PID myPID_top(&input_top, &output_top, &setpoint_top, kp_top, ki_top, kd_top, DIRECT);  
 
 void setup() { 
   Serial.begin(9600); //initialize serial comunication
-  pinMode(B_ENCODER_A, INPUT_PULLUP);
-  pinMode(B_ENCODER_B, INPUT_PULLUP);
-  pinMode(A_ENCODER_A, INPUT_PULLUP);
-  pinMode(A_ENCODER_B, INPUT_PULLUP);
-  digitalWrite(B_ENCODER_A, HIGH); //turn pullup resistor on
-  digitalWrite(B_ENCODER_B, HIGH); //
-  digitalWrite(A_ENCODER_A, HIGH); //turn pullup resistor on
-  digitalWrite(A_ENCODER_B, HIGH); //
+  pinMode(TOP_B_ENCODER_A, INPUT_PULLUP);
+  pinMode(TOP_B_ENCODER_B, INPUT_PULLUP);
+  pinMode(BTM_A_ENCODER_A, INPUT_PULLUP);
+  pinMode(BTM_A_ENCODER_B, INPUT_PULLUP);
+ 
 
    
   //call updateEncoder() when any high/low changed seen
   //on interrupt 0 (pin 2), or interrupt 1 (pin 3) 
-  attachInterrupt(0, updateEncoder, CHANGE); 
-  attachInterrupt(1, updateEncoder, CHANGE);
+  attachInterrupt(TOP_B_ENCODER_A_INT, updateTopEncoder, CHANGE); 
+  attachInterrupt(TOP_B_ENCODER_B_INT, updateTopEncoder, CHANGE);
+  attachInterrupt(BTM_A_ENCODER_A_INT, updateBtmEncoder, CHANGE); 
+  attachInterrupt(BTM_A_ENCODER_B_INT, updateBtmEncoder, CHANGE);
     
-//  TCCR1B = TCCR1B & 0b11111000 | 1;  // set 31KHz PWM to prevent motor noise
+  TCCR1B = TCCR1B & 0b11111000 | 1;  // set 31KHz PWM to prevent motor noise
 
   myPID_btm.SetMode(AUTOMATIC);   //set PID in Auto mode
   myPID_btm.SetSampleTime(1);  // refresh rate of PID controller
@@ -84,7 +107,9 @@ void setup() {
 
   myPID_top.SetMode(AUTOMATIC);   //set PID in Auto mode
   myPID_top.SetSampleTime(1);  // refresh rate of PID controller
-  myPID_top.SetOutputLimits(-50, 50); // this is the MAX PWM value to move motor, here change in value reflect change in speed of motor.
+  myPID_top.SetOutputLimits(-90, 90); // this is the MAX PWM value to move motor, here change in value reflect change in speed of motor.
+
+  delay(1000);
 }
 
 
@@ -104,32 +129,30 @@ void loop() {
     User_Input_btm = _btmVal.toInt();   // here input data is store in integer form
     User_Input_top = _topVal.toInt();   // here input data is store in integer form
   } 
-  User_Input_top = 100;
+  User_Input_top = 180;
+  User_Input_btm = 180;
 REV_btm = map (User_Input_btm, 0, 360, 0, _btmMtrPPR); // mapping degree into pulse
 REV_top = map (User_Input_top, 0, 360, 0, _topMtrPPR); // mapping degree into pulse
-//Serial.print("this is REV _btm - "); 
-//Serial.print(REV_btm);               // printing REV value 
-//Serial.print("  this is REV _top - "); 
-//Serial.println(REV_top);               // printing REV value  
 setpoint_btm = REV_btm;                    //PID while work to achive this value consider as SET value
 setpoint_top = REV_top;  
 input_btm = _btmEncoderCount ;           
 input_top = _topEncoderCount ;           
-//Serial.print("_btm encoder Count - ");
-//Serial.print(_btmEncoderCount);
-//Serial.print("  _top encoder Count - ");
-//Serial.println(_topEncoderCount);
-//myPID_btm.Compute();                 // calculate new output TODO
+myPID_btm.Compute();                 // calculate new output TODO
 myPID_top.Compute();                 // calculate new output
 Serial.print(setpoint_top);
 Serial.print("," );
+Serial.print(setpoint_btm);
+Serial.print("," );
 Serial.print(input_top);
+Serial.print("," );
+Serial.print(input_btm);
 Serial.print(",");
-Serial.print(output_top);
+Serial.print((output_top));
+
 Serial.println("");
 //write out to the motor
-//motor1.drive(output_btm); //TODO
-//motor1.drive(output_top);
+motor2.drive(output_btm); //TODO
+motor1.drive(output_top);
 //Serial.print("_btm motor out - ");
 //Serial.print(output_btm);
 //Serial.print("  _top motor out - ");
@@ -162,47 +185,24 @@ String getValue(String data, char separator, int index)
 //  }
 // readString=""; // Cleaning User input, ready for new Input
 //}
-void updateEncoder(){
-  int MSB = bitRead(PIND, 2); //MSB = most significant bit
-  int LSB = bitRead(PIND, 3); //LSB = least significant bit
+void updateTopEncoder(){
+  int MSB = bitRead(PIND, TOP_B_ENCODER_A_PN); //MSB = most significant bit
+  int LSB = bitRead(PIND, TOP_B_ENCODER_B_PN); //LSB = least significant bit
   int encoded = (MSB << 1) |LSB; //converting the 2 pin value to single number
-  int sum  = (lastEncoded << 2) | encoded; //adding it to the previous encoded value
-  if(sum == 0b1101 || sum == 0b0100 || sum == 0b0010 || sum == 0b1011) encoderValue ++;
-  if(sum == 0b1110 || sum == 0b0111 || sum == 0b0001 || sum == 0b1000) encoderValue --;
-  lastEncoded = encoded; //store this value for next time
+  int sum  = (lastTopEncoded << 2) | encoded; //adding it to the previous encoded value
+  if(sum == 0b1101 || sum == 0b0100 || sum == 0b0010 || sum == 0b1011) _topEncoderCount --;
+  if(sum == 0b1110 || sum == 0b0111 || sum == 0b0001 || sum == 0b1000) _topEncoderCount ++;
+//  _topEncoderCount ++
+  lastTopEncoded = encoded; //store this value for next time
 }
-
-// encoder event for the interrupt call
-void _topEncoderEvent() {
-  if (bitRead(PIND, 2) == HIGH) {
-    if (bitRead(PINC, 2) == LOW) {
-      _topEncoderCount++;
-    } else {
-      _topEncoderCount--;
-    }
-  } else {
-    if (bitRead(PINC, 2) == LOW) {
-      _topEncoderCount--;
-    } else {
-      _topEncoderCount++;
-    }
-  }
- }
-
-// encoder event for the interrupt call
-void _btmEncoderEvent() {
-
-  if (bitRead(PIND, 3) == HIGH) {
-    if (bitRead(PINC, 1) == LOW) {
-      _btmEncoderCount++;
-    } else {
-      _btmEncoderCount--;
-    }
-  } else {
-    if (bitRead(PINC, 1) == LOW) {
-      _btmEncoderCount--;
-    } else {
-      _btmEncoderCount++;
-    }
-  }
+void updateBtmEncoder(){
+  int MSB = bitRead(PIND, BTM_A_ENCODER_A_PN); //MSB = most significant bit
+  int LSB = bitRead(PIND, BTM_A_ENCODER_B_PN); //LSB = least significant bit
+  int encoded = (MSB << 1) |LSB; //converting the 2 pin value to single number
+  int sum  = (lastBtmEncoded << 2) | encoded; //adding it to the previous encoded value
+  if(sum == 0b1101 || sum == 0b0100 || sum == 0b0010 || sum == 0b1011) _btmEncoderCount ++;
+  if(sum == 0b1110 || sum == 0b0111 || sum == 0b0001 || sum == 0b1000) _btmEncoderCount --;
+//  _topEncoderCount ++
+  lastBtmEncoded = encoded; //store this value for next time
 }
+// encoder event for the interrupt call
